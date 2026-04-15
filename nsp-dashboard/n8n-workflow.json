@@ -1,1 +1,476 @@
-{}
+{
+  "name": "NSP Cases — AI Enquiry Processor",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "readStatus": "unread"
+        }
+      },
+      "id": "a7d18a7a-0426-468a-8224-16a1f2817864",
+      "name": "1. Gmail — New Enquiry",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1200,
+        112
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "BlCo0nFPUC5Te3Gd",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nlet emailText = '';\n\n// METHOD 1: Gmail Get with Simplify ON gives text/html directly\nif (item.text && item.text.length > 250) {\n  emailText = item.text;\n} else if (item.html && item.html.length > 250) {\n  emailText = item.html\n    .replace(/<br\\s*\\/?>/gi, '\\n')\n    .replace(/<\\/div>/gi, '\\n')\n    .replace(/<\\/p>/gi, '\\n')\n    .replace(/<[^>]*>/g, '')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/&amp;/g, '&')\n    .replace(/\\n{3,}/g, '\\n\\n')\n    .trim();\n}\n\n// METHOD 2: Raw payload — decode base64 from parts\nif (!emailText || emailText.length < 250) {\n  function decodeBody(payload) {\n    if (!payload) return '';\n    \n    // Direct body data\n    if (payload.body && payload.body.data) {\n      try {\n        const decoded = Buffer.from(\n          payload.body.data.replace(/-/g, '+').replace(/_/g, '/'),\n          'base64'\n        ).toString('utf-8');\n        if (payload.mimeType === 'text/plain') return decoded;\n        if (payload.mimeType === 'text/html') {\n          return decoded\n            .replace(/<br\\s*\\/?>/gi, '\\n')\n            .replace(/<\\/div>/gi, '\\n')\n            .replace(/<\\/p>/gi, '\\n')\n            .replace(/<[^>]*>/g, '')\n            .replace(/&nbsp;/g, ' ')\n            .replace(/&amp;/g, '&')\n            .replace(/\\n{3,}/g, '\\n\\n')\n            .trim();\n        }\n      } catch(e) {}\n    }\n    \n    // Recurse into multipart parts\n    if (payload.parts && payload.parts.length > 0) {\n      let plainText = '';\n      let htmlText = '';\n      for (const part of payload.parts) {\n        if (part.mimeType === 'text/plain' && part.body && part.body.data) {\n          try {\n            plainText = Buffer.from(\n              part.body.data.replace(/-/g, '+').replace(/_/g, '/'),\n              'base64'\n            ).toString('utf-8');\n          } catch(e) {}\n        } else if (part.mimeType === 'text/html' && part.body && part.body.data) {\n          try {\n            const raw = Buffer.from(\n              part.body.data.replace(/-/g, '+').replace(/_/g, '/'),\n              'base64'\n            ).toString('utf-8');\n            htmlText = raw\n              .replace(/<br\\s*\\/?>/gi, '\\n')\n              .replace(/<\\/div>/gi, '\\n')\n              .replace(/<\\/p>/gi, '\\n')\n              .replace(/<[^>]*>/g, '')\n              .replace(/&nbsp;/g, ' ')\n              .replace(/&amp;/g, '&')\n              .replace(/\\n{3,}/g, '\\n\\n')\n              .trim();\n          } catch(e) {}\n        } else if (part.parts) {\n          // Nested multipart\n          const nested = decodeBody(part);\n          if (nested.length > 0) return nested;\n        }\n      }\n      // Prefer plain text, fallback to HTML\n      if (plainText.length > 100) return plainText;\n      if (htmlText.length > 100) return htmlText;\n    }\n    \n    return '';\n  }\n  \n  const decoded = decodeBody(item.payload);\n  if (decoded.length > emailText.length) {\n    emailText = decoded;\n  }\n}\n\n// METHOD 3: Last resort — snippet\nif (!emailText || emailText.length < 100) {\n  emailText = item.snippet || '';\n}\n\n// Image attachments\nconst imageAttachments = [];\nconst keys = Object.keys(item);\nfor (const key of keys) {\n  if (key.startsWith('attachment_')) {\n    const att = item[key];\n    if (att && att.mimeType && att.mimeType.startsWith('image/')) {\n      imageAttachments.push({\n        filename: att.fileName || 'attachment',\n        mimeType: att.mimeType,\n        data: att.data\n      });\n    }\n  }\n}\n\nreturn [{\n  json: {\n    from: item.From || item.from || '',\n    subject: item.Subject || item.subject || '',\n    date: item.date || item.internalDate || '',\n    text: emailText,\n    textLength: emailText.length,\n    hasImageAttachments: imageAttachments.length > 0,\n    imageAttachments: imageAttachments,\n    attachmentCount: imageAttachments.length\n  }\n}];"
+      },
+      "id": "b1eb7fef-6bab-44cb-8b29-9916e9735950",
+      "name": "2. Check Attachments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -752,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\nconst systemPrompt = `You are an AI assistant for NSP Cases, a UK-based custom flight case manufacturer in Maidstone, Kent. Your job is to extract EVERY piece of information from customer enquiry emails. Be thorough — missing data means a delayed quote.\n\nCRITICAL EXTRACTION RULES:\n\n1. CUSTOMER DETAILS — ALWAYS check the email signature block at the bottom. Customers sign off with their name, title, company, email, and phone. These are NEVER \"Unknown\" if they appear anywhere in the email. Look for patterns like:\n   - \"Cheers, Dan Mitchell\" or \"Best regards, Sophie Chen\" = that is the customer name\n   - Lines with @ symbol = email address\n   - Lines with phone-like numbers (07xxx, 020 xxxx, +44) = phone number\n   - Lines with titles like \"Director\", \"Manager\", \"Head of\" = role\n   - Lines with \"Ltd\", \"Inc\", \"Productions\", \"Engineering\" = company name\n\n2. DIMENSIONS — Extract EVERY dimension mentioned. Customers write dimensions in many formats:\n   - \"800mm x 600mm x 750mm\" or \"800 x 600 x 750mm\" or \"approximately 450mm x 380mm x 420mm\"\n   - Always parse as length_mm x width_mm x height_mm\n   - If they say \"internal\" or \"external\" or just give the item size, note the type\n   - NEVER return null for dimensions that are clearly stated in the email\n\n3. ITEMS — Extract EVERY separate product requested. Customers often list multiple items:\n   - Numbered lists (1. 2. 3.) = separate items\n   - Different product types = separate items\n   - \"qty 3\" or \"x 3\" or \"— qty 3\" = quantity for that item\n   - A drawer case, utility case, camera case, lens case are ALL separate items\n\n4. DEADLINE — Extract ANY time reference:\n   - \"mid-August\" = \"Mid-August\"\n   - \"within 6-8 weeks\" = \"6-8 weeks\"\n   - \"race at Spa on 14th September\" = \"14th September (race at Spa)\"\n   - \"delivered by\" or \"need by\" or \"timeline\" = deadline\n\n5. URGENCY — Determine from context:\n   - Subject contains \"Urgent\" or \"ASAP\" = \"high\" or \"critical\"\n   - Tight deadline (< 4 weeks) = \"high\"\n   - Race/event deadline = \"high\"\n   - \"no rush\" or \"6-8 weeks\" = \"low\"\n   - Standard request = \"medium\"\n\n6. REQUIREMENTS — List EVERY specific requirement mentioned:\n   - Castors, wheels, handles, latches, straps\n   - Foam types (CNC, custom cradle, oil-resistant)\n   - Panel finish (hexaboard, colour, orange)\n   - Protection (shock-mount, waterproof, airline-friendly)\n   - Features (stackable, pull-along, drawers)\n   - Branding (screen print, logo, labels, colour-coding)\n   - Covers (soft cover, bag)\n\n7. SERVICES — Map requirements to NSP services:\n   - Any mention of foam/inserts = \"Custom CNC Foam Inserts\"\n   - Logo/branding/screen print = \"Screen Printing\"\n   - Full colour print = \"Digital Printing\"\n   - Tour labels = \"Tour Labels\"\n   - Soft cover/bag = \"Soft Covers & Bags\"\n   - Colour panels/orange/non-standard colour = \"Colour Panels\"\n\n8. ATTACHMENTS — If email mentions \"attached\", \"drawing\", \"CAD\", \"reference image\" = attachments_mentioned: true\n\nNSP Cases industries: Touring, Live Events, Motorsport, Catering & Hospitality, Rigging, TV & Film.\nProduct types: Road Trunk, Rack Case, Briefcase, 50/50 Split, Drawer Case, Utility Case, Pull-Along Case, Shockmount Case, Custom Flight Case.\n\nRespond ONLY with valid JSON. No markdown, no backticks, no explanation.\n\n{\n  \"customer\": {\n    \"name\": \"MUST extract from signature — never Unknown if name exists\",\n    \"company\": \"MUST extract from signature or email body\",\n    \"email\": \"MUST extract from signature — look for @ symbol\",\n    \"phone\": \"Extract if present, null if not\",\n    \"role\": \"Extract job title if present, null if not\"\n  },\n  \"enquiry\": {\n    \"industry\": \"Touring | Live Events | Motorsport | Catering & Hospitality | Rigging | TV & Film | Other\",\n    \"items\": [\n      {\n        \"product_type\": \"Road Trunk | Rack Case | Drawer Case | Custom Flight Case | etc\",\n        \"description\": \"What this case is for\",\n        \"quantity\": 1,\n        \"dimensions\": {\n          \"length_mm\": \"number — MUST extract if stated\",\n          \"width_mm\": \"number — MUST extract if stated\",\n          \"height_mm\": \"number — MUST extract if stated\",\n          \"type\": \"internal | external | item\"\n        },\n        \"requirements\": [\"EVERY requirement for this item\"]\n      }\n    ],\n    \"services_needed\": [\"Map from requirements to: Custom CNC Foam Inserts, Screen Printing, Digital Printing, Tour Labels, Soft Covers & Bags, Colour Panels\"],\n    \"deadline\": \"MUST extract any time reference — never null if mentioned\",\n    \"urgency\": \"low | medium | high | critical — based on subject line and deadline\",\n    \"attachments_mentioned\": false\n  },\n  \"attachment_analysis\": null,\n  \"summary\": \"2-3 sentence summary mentioning customer name and company\",\n  \"suggested_followup\": \"Specific questions to ask THIS customer\",\n  \"confidence_score\": 85,\n  \"missing_info\": [\"Only list info that is genuinely NOT in the email\"]\n}`;\n\nconst userContent = [{\n  type: 'text',\n  text: `CRITICAL INSTRUCTIONS:\\n1. The From header shows who SENT the email — this may be different from the actual customer.\\n2. The CUSTOMER details (name, email, phone, role, company) are in the SIGNATURE BLOCK at the bottom of the email body — lines after \"Best regards\" or \"Cheers\" or \"Thanks\".\\n3. The customer email in the signature (e.g. sophie.chen@clearwatermedia.co.uk) is DIFFERENT from the From header and the To header. Use the SIGNATURE email.\\n4. Extract ALL numbered items (1. 2. 3.) as separate products.\\n5. \"Timeline: within 6-8 weeks\" IS a deadline — extract it.\\n\\n---EMAIL START---\\nFrom header: ${input.from}\\nSubject: ${input.subject}\\n\\n${input.text}\\n---EMAIL END---\\n\\nExtract ALL information. The signature block has the customer name, role, company, email, and phone. Do NOT use the From header email or the To header email as the customer email — use the one in the signature.`\n}];\n\nif (input.hasImageAttachments && input.imageAttachments) {\n  for (const img of input.imageAttachments) {\n    userContent.push({\n      type: 'image_url',\n      image_url: { url: `data:${img.mimeType};base64,${img.data}`, detail: 'high' }\n    });\n    userContent.push({ type: 'text', text: `Above image is attachment (${img.filename}). Analyse for dimensions and specs.` });\n  }\n}\n\nconst requestBody = {\n  model: 'gpt-4o',\n  max_tokens: 4096,\n  temperature: 0.1,\n  response_format: { type: 'json_object' },\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: userContent }\n  ]\n};\n\nreturn [{ json: { requestBody: JSON.stringify(requestBody) } }];"
+      },
+      "id": "b0513fe7-9196-4d8b-b340-731c1ff8ead2",
+      "name": "3. Build GPT-4o Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -512,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "14465d79-7e0f-4bdc-b6b6-03f41680f28c",
+      "name": "4. GPT-4o — Extract",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -272,
+        112
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "a74TbVu5Gnt4TXIi",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.choices?.[0]?.message?.content || '';\nconst clean = content.replace(/```json|```/g, '').trim();\nlet parsed;\ntry { parsed = JSON.parse(clean); } catch (e) { throw new Error('JSON parse failed: ' + clean.substring(0, 200)); }\n\nreturn [{ json: {\n  processed_at: new Date().toISOString(),\n  customer_name: parsed.customer?.name || '',\n  customer_company: parsed.customer?.company || '',\n  customer_email: parsed.customer?.email || '',\n  customer_phone: parsed.customer?.phone || '',\n  customer_role: parsed.customer?.role || '',\n  industry: parsed.enquiry?.industry || '',\n  num_items: parsed.enquiry?.items?.length || 0,\n  items_detail: parsed.enquiry?.items?.map(i => `${i.quantity}x ${i.product_type} (${i.dimensions?.length_mm || '?'}x${i.dimensions?.width_mm || '?'}x${i.dimensions?.height_mm || '?'}mm)`).join(' | ') || '',\n  services: parsed.enquiry?.services_needed?.join(', ') || '',\n  deadline: parsed.enquiry?.deadline || '',\n  urgency: parsed.enquiry?.urgency || 'low',\n  attachments: parsed.enquiry?.attachments_mentioned || false,\n  attachment_analysis: parsed.attachment_analysis || '',\n  confidence: parsed.confidence_score || 0,\n  summary: parsed.summary || '',\n  missing_info: parsed.missing_info?.join(', ') || '',\n  followup: parsed.suggested_followup || '',\n  full_json: JSON.stringify(parsed)\n} }];"
+      },
+      "id": "8eca04fd-346b-4ea8-96f0-b79e12638f9f",
+      "name": "5. Parse & Flatten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ptuq2J7-Bg7453Sgnh446J3HkkX1JuTfGAGCEdRxe8c",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Enquiries",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_company",
+              "displayName": "customer_company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_email",
+              "displayName": "customer_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_phone",
+              "displayName": "customer_phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_role",
+              "displayName": "customer_role",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "industry",
+              "displayName": "industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "num_items",
+              "displayName": "num_items",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "items_detail",
+              "displayName": "items_detail",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "services",
+              "displayName": "services",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "deadline",
+              "displayName": "deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "urgency",
+              "displayName": "urgency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "attachments",
+              "displayName": "attachments",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "attachment_analysis",
+              "displayName": "attachment_analysis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "missing_info",
+              "displayName": "missing_info",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "followup",
+              "displayName": "followup",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "full_json",
+              "displayName": "full_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "cd32cc5e-a7f0-49fa-b0c4-69fa47da76b0",
+      "name": "6. Google Sheets — Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        208,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "O2sO7AkfRhJpKYHf",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AT7D1G5G8",
+          "mode": "list",
+          "cachedResultName": "general"
+        },
+        "text": "=🆕 *New Enquiry — {{ $json.customer_company }}*\n👤 *Contact:* {{ $json.customer_name }} ({{ $json.customer_role || 'Role not specified' }})\n📧 {{ $json.customer_email }}  📞 {{ $json.customer_phone || 'No phone' }}\n\n*Industry:* {{ $json.industry }}\n*Items:* {{ $json.items_detail }}\n*Services:* {{ $json.services || 'None specified' }}\n*Urgency:* {{ $json.urgency.toUpperCase() }}  |  *Confidence:* {{ $json.confidence }}%\n*Deadline:* {{ $json.deadline || 'Not specified' }}\n\n📝 {{ $json.summary }}\n\n{{ $json.missing_info ? '⚠️ *Missing:* ' + $json.missing_info : '✅ Complete enquiry — ready to quote' }}\n{{ $json.attachment_analysis ? '📎 *Attachment:* ' + $json.attachment_analysis : '' }}",
+        "otherOptions": {}
+      },
+      "id": "ef19727d-d66d-4edb-af66-66ab5d2ce86a",
+      "name": "7. Slack — Notify Team",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        208,
+        208
+      ],
+      "webhookId": "bce368ff-35f7-4167-9491-4fe3de60defa",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "hW5eFfDZWITEL4cG",
+          "name": "Slack OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -992,
+        112
+      ],
+      "id": "36563939-2418-42cf-9d56-5c2e57a3f111",
+      "name": "Get a message",
+      "webhookId": "f1fdf787-323d-4589-8419-d38d99d0ad2c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "BlCo0nFPUC5Te3Gd",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "1. Gmail — New Enquiry": {
+      "main": [
+        [
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Check Attachments": {
+      "main": [
+        [
+          {
+            "node": "3. Build GPT-4o Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Build GPT-4o Request": {
+      "main": [
+        [
+          {
+            "node": "4. GPT-4o — Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. GPT-4o — Extract": {
+      "main": [
+        [
+          {
+            "node": "5. Parse & Flatten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Parse & Flatten": {
+      "main": [
+        [
+          {
+            "node": "6. Google Sheets — Log",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "7. Slack — Notify Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "2. Check Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e39ad288-90e7-4b82-86bb-63a0132ab8e3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0f6f4c5f7444007944fe00b24f83ac4bc97060a6ed47a19a51cd983c62321b7a"
+  },
+  "id": "jBvFQOLYGvopgidF",
+  "tags": []
+}
