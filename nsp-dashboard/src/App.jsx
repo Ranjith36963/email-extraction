@@ -1,17 +1,28 @@
 import { useState, useEffect, useCallback } from "react";
 
-/* ── Theme tokens ─────────────────────────────── */
+/* ── Design tokens ────────────────────────────────
+   Three-layer surface system: bg → surface → raised
+   Color is semantic only: green=good, yellow=warn, red=bad, blue=info, accent=brand
+   Typography hierarchy via weight+size, not color variety
+*/
+const mono = "'IBM Plex Mono',monospace";
 const T = {
-  bg:"#0b0f14", panel:"#12171f", card:"#171e2a", cardHover:"#1c2536",
-  border:"#222d3d", accent:"#e8771a", accentGlow:"rgba(232,119,26,0.12)",
-  green:"#34d399", greenDim:"rgba(52,211,153,0.15)",
-  yellow:"#fbbf24", yellowDim:"rgba(251,191,36,0.15)",
-  red:"#f87171", redDim:"rgba(248,113,113,0.15)",
-  blue:"#60a5fa", blueDim:"rgba(96,165,250,0.15)",
-  text:"#e1e7ef", textSoft:"#94a3b8", textMuted:"#586579", white:"#fff",
-  shadow:"rgba(0,0,0,0.35)",
-  headerGrad:"linear-gradient(135deg, #131a24 0%, #0f1620 50%, #111927 100%)",
-  grain:`url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E")`,
+  bg:"#0a0d12",
+  surface:"#111419",
+  surfaceHover:"#161b24",
+  surfaceActive:"#1b2130",
+  border:"#1e2430",
+  borderHover:"#2a3344",
+  accent:"#e8771a",
+  accentSoft:"rgba(232,119,26,0.08)",
+  green:"#22c55e",  greenSoft:"rgba(34,197,94,0.08)",
+  yellow:"#eab308", yellowSoft:"rgba(234,179,8,0.08)",
+  red:"#ef4444",    redSoft:"rgba(239,68,68,0.08)",
+  blue:"#3b82f6",   blueSoft:"rgba(59,130,246,0.08)",
+  text:"#dfe3eb",
+  textSec:"#8a94a6",
+  textMut:"#4f5868",
+  white:"#f0f2f5",
 };
 
 const REFRESH = 15000;
@@ -41,9 +52,10 @@ export default function App() {
   useEffect(() => { fetchData(true); }, [fetchData]);
   useEffect(() => { const iv = setInterval(() => fetchData(), REFRESH); return () => clearInterval(iv); }, [fetchData]);
 
-  const urgCol = u => ({low:T.green,medium:T.blue,high:T.yellow,critical:T.red}[u]||T.textMuted);
-  const urgBg = u => ({low:T.greenDim,medium:T.blueDim,high:T.yellowDim,critical:T.redDim}[u]||"transparent");
+  const urgCol = u => ({low:T.green,medium:T.blue,high:T.yellow,critical:T.red}[u]||T.textMut);
+  const urgBg = u => ({low:T.greenSoft,medium:T.blueSoft,high:T.yellowSoft,critical:T.redSoft}[u]||"transparent");
   const confCol = s => s>=80?T.green:s>=50?T.yellow:T.red;
+  const confBg = s => s>=80?T.greenSoft:s>=50?T.yellowSoft:T.redSoft;
 
   const stats = {
     total: enquiries.length,
@@ -53,213 +65,211 @@ export default function App() {
   };
 
   return (
-    <div style={{background:T.bg,minHeight:"100vh",color:T.text,fontFamily:"'Libre Franklin',sans-serif",position:"relative"}}>
-      {/* Grain texture overlay */}
-      <div style={{position:"fixed",inset:0,backgroundImage:T.grain,backgroundRepeat:"repeat",pointerEvents:"none",zIndex:0,opacity:0.4}}/>
-
-      <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+    <div style={{background:T.bg,minHeight:"100vh",color:T.text,fontFamily:"'Libre Franklin',sans-serif"}}>
+      <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
       <style>{`
-        @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes staggerIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes appear{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes spin{to{transform:rotate(360deg)}}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-        @keyframes glowPulse{0%,100%{box-shadow:0 0 4px var(--gc,${T.accent})}50%{box-shadow:0 0 14px 3px var(--gc,${T.accent})}}
-        @keyframes nodePulse{0%,100%{opacity:.5}50%{opacity:1}}
-        @keyframes emptyFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-        *{box-sizing:border-box;margin:0;padding:0}body{background:${T.bg}}
-        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:${T.border};border-radius:3px}
-        button:focus{outline:none}
-        .enquiry-card{transition:all 0.25s cubic-bezier(0.4,0,0.2,1)}
-        .enquiry-card:hover{transform:translateY(-2px) scale(1.004);box-shadow:0 6px 24px rgba(0,0,0,0.35),0 0 0 1px #3a4a60 !important;border-color:#3a4a60 !important}
+        @keyframes live{0%,100%{opacity:1}50%{opacity:.3}}
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        body{background:${T.bg}}
+        ::-webkit-scrollbar{width:6px}
+        ::-webkit-scrollbar-thumb{background:${T.border};border-radius:3px}
+        ::-webkit-scrollbar-track{background:transparent}
+        button{font-family:inherit}
+        button:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
+        .nav-tab{transition:all 150ms ease}
+        .nav-tab:hover{color:${T.text} !important;background:${T.surfaceHover} !important}
+        .stat{transition:border-color 150ms ease}
+        .stat:hover{border-color:${T.borderHover} !important}
+        .enq-card{transition:all 150ms ease}
+        .enq-card:hover{background:${T.surfaceHover} !important;border-color:${T.borderHover} !important}
+        .btn-ghost{transition:all 150ms ease}
+        .btn-ghost:hover{background:${T.surfaceHover} !important;border-color:${T.borderHover} !important;color:${T.text} !important}
         @media(max-width:768px){
           .stats-grid{grid-template-columns:repeat(2,1fr) !important}
-          .detail-grid-4{grid-template-columns:1fr 1fr !important}
-          .detail-grid-2{grid-template-columns:1fr !important}
-          .arch-panels-grid{grid-template-columns:1fr !important}
-          .key-decisions-grid{grid-template-columns:1fr !important}
-          .header-inner{padding:0 16px !important}
-          .main-content{padding:24px 16px !important}
+          .detail-4{grid-template-columns:1fr 1fr !important}
+          .detail-2{grid-template-columns:1fr !important}
+          .panels-2{grid-template-columns:1fr !important}
+          .decisions-grid{grid-template-columns:1fr !important}
+          .hdr-inner{padding:0 16px !important}
+          .main-wrap{padding:24px 16px !important}
         }
         @media(max-width:480px){
           .stats-grid{grid-template-columns:1fr !important}
-          .detail-grid-4{grid-template-columns:1fr !important}
-          .header-inner{flex-direction:column !important;gap:8px !important;height:auto !important;padding:12px 16px !important}
-          .enquiry-top{flex-direction:column !important}
-          .enquiry-conf{text-align:left !important;margin-left:0 !important;margin-top:8px !important}
+          .detail-4{grid-template-columns:1fr !important}
+          .hdr-inner{flex-direction:column !important;gap:8px !important;height:auto !important;padding:12px 16px !important}
+          .enq-top{flex-direction:column !important}
+          .enq-score{margin-left:0 !important;margin-top:12px !important}
         }
         @media(prefers-reduced-motion:reduce){
-          .enquiry-card,.stats-grid>div{opacity:1 !important;animation:none !important}
+          .enq-card,.stat{opacity:1 !important;animation:none !important}
         }
       `}</style>
 
       {/* ── HEADER ── */}
-      <header style={{background:T.headerGrad,borderBottom:"1px solid transparent",borderImage:`linear-gradient(90deg,transparent,${T.border},${T.accent}44,${T.border},transparent) 1`,boxShadow:`0 1px 20px rgba(0,0,0,0.35)`,position:"relative",zIndex:2}}>
-        <div className="header-inner" style={{maxWidth:1120,margin:"0 auto",padding:"0 32px",display:"flex",alignItems:"center",justifyContent:"space-between",height:68}}>
-          <div style={{display:"flex",alignItems:"center",gap:14}}>
-            <div style={{width:9,height:9,background:T.green,borderRadius:"50%",boxShadow:`0 0 12px ${T.green}`,animation:"pulse 3s infinite"}}/>
-            <span style={{fontSize:19,fontWeight:800,color:T.white,letterSpacing:"0.5px"}}>NSP</span>
-            <span style={{fontSize:17,fontWeight:300,color:T.textSoft,letterSpacing:"2px"}}>CASES</span>
-            <span style={{fontSize:10,color:T.accent,fontFamily:"'IBM Plex Mono',monospace",marginLeft:8,padding:"3px 10px",background:T.accentGlow,borderRadius:4,fontWeight:600}}>ENQUIRY DASHBOARD</span>
+      <header style={{background:T.surface,borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,zIndex:10}}>
+        <div className="hdr-inner" style={{maxWidth:1080,margin:"0 auto",padding:"0 32px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:8,height:8,background:T.green,borderRadius:"50%",boxShadow:`0 0 6px ${T.green}`,animation:"live 3s infinite"}}/>
+            <span style={{fontSize:14,fontWeight:700,color:T.white,letterSpacing:"0.5px"}}>NSP</span>
+            <span style={{fontSize:14,fontWeight:400,color:T.textSec,letterSpacing:"1.5px"}}>CASES</span>
           </div>
-          <nav style={{display:"flex",gap:2}}>
-            {[{k:"dashboard",l:"Dashboard",i:"◫"},{k:"architecture",l:"Architecture",i:"⬡"}].map(tab=>(
-              <button key={tab.k} onClick={()=>setView(tab.k)} style={{
-                padding:"10px 20px",background:view===tab.k?T.accentGlow:"transparent",
-                border:"none",borderBottom:`2.5px solid ${view===tab.k?T.accent:"transparent"}`,
-                color:view===tab.k?T.accent:T.textMuted,cursor:"pointer",fontSize:12,fontWeight:600,
-                fontFamily:"inherit",transition:"all 0.2s ease",borderRadius:"4px 4px 0 0"
-              }}>{tab.i} {tab.l}</button>
+          <nav style={{display:"flex",gap:4}}>
+            {[{k:"dashboard",l:"Dashboard"},{k:"architecture",l:"Architecture"}].map(tab=>(
+              <button key={tab.k} className="nav-tab" onClick={()=>setView(tab.k)} style={{
+                padding:"6px 14px",background:view===tab.k?T.surfaceActive:"transparent",
+                border:"none",borderRadius:6,color:view===tab.k?T.white:T.textMut,
+                cursor:"pointer",fontSize:13,fontWeight:view===tab.k?600:400,
+              }}>{tab.l}</button>
             ))}
           </nav>
         </div>
       </header>
 
-      <main className="main-content" style={{maxWidth:1120,margin:"0 auto",padding:"32px 32px",position:"relative",zIndex:1}}>
+      <main className="main-wrap" style={{maxWidth:1080,margin:"0 auto",padding:"32px 32px 48px"}}>
 
-        {/* ── DASHBOARD TAB ── */}
+        {/* ── DASHBOARD ── */}
         {view==="dashboard"&&(
-          <div style={{animation:"fadeUp 0.3s ease"}}>
+          <div style={{animation:"appear 0.25s ease"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
               <div>
-                <h2 style={{fontSize:22,fontWeight:800,color:T.white,letterSpacing:"-0.3px"}}>Enquiry Dashboard</h2>
-                <p style={{fontSize:12,color:T.textMuted,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
-                  Auto-refreshes every {REFRESH/1000}s{lastRefresh&&<> · Last: {lastRefresh.toLocaleTimeString()}</>}
+                <h2 style={{fontSize:20,fontWeight:700,color:T.white,lineHeight:1.3}}>Enquiries</h2>
+                <p style={{fontSize:12,color:T.textMut,marginTop:2,fontFamily:mono}}>
+                  Refreshes every {REFRESH/1000}s{lastRefresh&&<> · {lastRefresh.toLocaleTimeString()}</>}
                 </p>
               </div>
-              <button onClick={()=>fetchData(true)} style={{
-                padding:"9px 18px",background:T.card,border:`1px solid ${T.border}`,borderRadius:8,
-                color:T.textSoft,cursor:"pointer",fontSize:11,fontFamily:"'IBM Plex Mono',monospace",
-                display:"flex",alignItems:"center",gap:6,transition:"all 0.2s ease"
+              <button className="btn-ghost" onClick={()=>fetchData(true)} style={{
+                padding:"7px 14px",background:T.surface,border:`1px solid ${T.border}`,
+                borderRadius:6,color:T.textSec,cursor:"pointer",fontSize:12,
+                fontFamily:mono,display:"flex",alignItems:"center",gap:6,
               }}>
-                {loading?<span style={{width:12,height:12,border:`2px solid ${T.border}`,borderTopColor:T.accent,borderRadius:"50%",animation:"spin 0.7s linear infinite"}}/>:"↻"} Refresh
+                {loading?<span style={{width:12,height:12,border:`1.5px solid ${T.border}`,borderTopColor:T.accent,borderRadius:"50%",animation:"spin 0.6s linear infinite"}}/>:"↻"} Refresh
               </button>
             </div>
 
             {/* Stats */}
-            <div className="stats-grid" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:28}}>
+            <div className="stats-grid" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:32}}>
               {[
-                {l:"Total Enquiries",v:stats.total,c:T.white,accent:T.accent},
-                {l:"Avg Confidence",v:`${stats.avgConf}%`,c:confCol(stats.avgConf),accent:T.green},
-                {l:"High Priority",v:stats.urgent,c:stats.urgent>0?T.yellow:T.green,accent:T.yellow},
-                {l:"Industries",v:stats.industries,c:T.blue,accent:T.blue},
+                {l:"Total Enquiries",v:stats.total,c:T.white},
+                {l:"Avg Confidence",v:`${stats.avgConf}%`,c:confCol(stats.avgConf)},
+                {l:"High Priority",v:stats.urgent,c:stats.urgent>0?T.yellow:T.green},
+                {l:"Industries",v:stats.industries,c:T.blue},
               ].map((s,i)=>(
-                <div key={i} style={{
-                  background:T.card,border:`1px solid ${T.border}`,borderLeft:`3px solid ${s.accent}`,
-                  borderRadius:8,padding:"18px 20px",textAlign:"left",
-                  boxShadow:`inset 4px 0 14px -5px ${s.accent}33`,
-                  animation:"staggerIn 0.45s ease forwards",animationDelay:`${i*80}ms`,opacity:0
+                <div key={i} className="stat" style={{
+                  background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,padding:"16px 20px",
+                  animation:"appear 0.3s ease forwards",animationDelay:`${i*60}ms`,opacity:0,
                 }}>
-                  <div style={{fontSize:9,fontFamily:"'IBM Plex Mono',monospace",color:T.textMuted,textTransform:"uppercase",letterSpacing:"1.2px",marginBottom:8}}>{s.l}</div>
-                  <div style={{fontSize:22,fontWeight:800,color:s.c,fontFamily:"'IBM Plex Mono',monospace"}}>{s.v}</div>
+                  <div style={{fontSize:11,fontFamily:mono,color:T.textMut,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>{s.l}</div>
+                  <div style={{fontSize:24,fontWeight:700,color:s.c,fontFamily:mono,lineHeight:1}}>{s.v}</div>
                 </div>
               ))}
             </div>
 
             {/* Error */}
-            {error&&<div style={{padding:16,background:T.redDim,border:`1px solid ${T.red}`,borderRadius:8,fontSize:12,fontFamily:"'IBM Plex Mono',monospace",color:T.red,marginBottom:16}}>Failed to load: {error}</div>}
+            {error&&<div style={{padding:"12px 16px",background:T.redSoft,border:`1px solid ${T.red}20`,borderRadius:6,fontSize:12,fontFamily:mono,color:T.red,marginBottom:16}}>Failed to load: {error}</div>}
 
             {/* Loading */}
             {loading&&enquiries.length===0&&!error&&(
-              <div style={{textAlign:"center",padding:"60px 20px",color:T.textMuted}}>
-                <div style={{width:24,height:24,border:`2px solid ${T.border}`,borderTopColor:T.accent,borderRadius:"50%",animation:"spin 0.7s linear infinite",margin:"0 auto 16px"}}/>
-                <p style={{fontSize:13}}>Loading enquiries from Google Sheets...</p>
+              <div style={{textAlign:"center",padding:"64px 20px",color:T.textMut}}>
+                <div style={{width:20,height:20,border:`2px solid ${T.border}`,borderTopColor:T.accent,borderRadius:"50%",animation:"spin 0.6s linear infinite",margin:"0 auto 16px"}}/>
+                <p style={{fontSize:13}}>Loading enquiries...</p>
               </div>
             )}
 
-            {/* Empty state */}
+            {/* Empty */}
             {!loading&&enquiries.length===0&&!error&&(
-              <div style={{textAlign:"center",padding:"80px 20px",color:T.textMuted}}>
-                <div style={{display:"inline-block",position:"relative",marginBottom:28,animation:"emptyFloat 3s ease-in-out infinite"}}>
-                  <div style={{width:80,height:52,border:`2px solid ${T.border}`,borderTop:"none",borderRadius:"0 0 14px 14px",position:"relative",margin:"0 auto"}}>
-                    <div style={{position:"absolute",top:0,left:-10,right:-10,height:2,background:`linear-gradient(90deg,transparent,${T.textMuted},transparent)`,borderRadius:1}}/>
-                    <div style={{position:"absolute",top:-28,left:"50%",transform:"translateX(-50%)",width:2,height:20,background:T.textMuted,borderRadius:1}}/>
-                    <div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%) rotate(45deg)",width:10,height:10,borderRight:`2px solid ${T.textMuted}`,borderBottom:`2px solid ${T.textMuted}`}}/>
-                    <div style={{position:"absolute",top:14,left:"50%",transform:"translateX(-50%)",fontSize:18,opacity:0.3}}>◫</div>
-                  </div>
-                </div>
-                <p style={{fontSize:16,marginBottom:8,color:T.textSoft,fontWeight:500}}>No enquiries yet</p>
-                <p style={{fontSize:12,maxWidth:360,margin:"0 auto",lineHeight:1.7}}>Send an email to the company inbox — n8n will process it and it'll appear here automatically.</p>
+              <div style={{textAlign:"center",padding:"72px 20px",border:`1px dashed ${T.border}`,borderRadius:8}}>
+                <div style={{width:48,height:48,borderRadius:10,background:T.surface,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:20,color:T.textMut}}>◫</div>
+                <p style={{fontSize:15,fontWeight:600,color:T.textSec,marginBottom:6}}>No enquiries yet</p>
+                <p style={{fontSize:13,color:T.textMut,maxWidth:380,margin:"0 auto",lineHeight:1.6}}>
+                  Send an email to the company inbox — n8n will process it and it'll appear here automatically.
+                </p>
               </div>
             )}
 
-            {/* Enquiry Cards */}
+            {/* Enquiry cards */}
             {enquiries.map((enq,idx)=>(
-              <div key={enq.id} className="enquiry-card" onClick={()=>setSelectedId(enq.id===selectedId?null:enq.id)} style={{
-                background:selectedId===enq.id?T.cardHover:T.card,
-                border:`1px solid ${selectedId===enq.id?T.accent:T.border}`,
-                borderRadius:10,padding:"20px 22px",cursor:"pointer",marginBottom:14,
-                boxShadow:selectedId===enq.id?`0 0 0 1px ${T.accent},0 4px 24px ${T.accentGlow}`:`0 1px 4px ${T.shadow}`,
-                animation:"staggerIn 0.4s ease forwards",animationDelay:`${idx*60}ms`,opacity:0
+              <div key={enq.id} className="enq-card" onClick={()=>setSelectedId(enq.id===selectedId?null:enq.id)} style={{
+                background:selectedId===enq.id?T.surfaceActive:T.surface,
+                border:`1px solid ${selectedId===enq.id?T.accent+"40":T.border}`,
+                borderRadius:8,padding:"16px 20px",cursor:"pointer",marginBottom:8,
+                animation:"appear 0.3s ease forwards",animationDelay:`${idx*50}ms`,opacity:0,
               }}>
-                <div className="enquiry-top" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                  <div style={{flex:1}}>
-                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}>
-                      <span style={{fontWeight:700,fontSize:15,color:T.white}}>{enq.customer?.company||"Unknown"}</span>
-                      <Badge t={enq.enquiry?.industry} c={T.blue} bg={T.blueDim}/>
+                <div className="enq-top" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+                      <span style={{fontWeight:600,fontSize:14,color:T.white}}>{enq.customer?.company||"Unknown"}</span>
+                      <Badge t={enq.enquiry?.industry} c={T.blue} bg={T.blueSoft}/>
                       <Badge t={enq.enquiry?.urgency?.toUpperCase()} c={urgCol(enq.enquiry?.urgency)} bg={urgBg(enq.enquiry?.urgency)}/>
-                      {enq.enquiry?.attachments_mentioned&&<Badge t="📎 ATTACHMENTS" c={T.textSoft} bg={T.panel}/>}
+                      {enq.enquiry?.attachments_mentioned&&<Badge t="ATTACHMENTS" c={T.textSec} bg={T.surfaceHover}/>}
                     </div>
-                    <p style={{margin:0,fontSize:12,color:T.textSoft,lineHeight:1.6}}>{enq.summary}</p>
+                    <p style={{fontSize:13,color:T.textSec,lineHeight:1.5,margin:0}}>{enq.summary}</p>
                   </div>
-                  <div className="enquiry-conf" style={{textAlign:"right",marginLeft:16,flexShrink:0}}>
-                    <div style={{fontSize:24,fontWeight:800,color:confCol(enq.confidence_score),fontFamily:"'IBM Plex Mono',monospace"}}>{enq.confidence_score}%</div>
-                    <div style={{fontSize:9,color:T.textMuted,fontFamily:"'IBM Plex Mono',monospace",letterSpacing:"1px"}}>CONF</div>
+                  <div className="enq-score" style={{marginLeft:20,flexShrink:0,textAlign:"center",background:confBg(enq.confidence_score),borderRadius:8,padding:"8px 14px",minWidth:62}}>
+                    <div style={{fontSize:20,fontWeight:700,color:confCol(enq.confidence_score),fontFamily:mono,lineHeight:1}}>{enq.confidence_score}%</div>
+                    <div style={{fontSize:9,color:T.textMut,fontFamily:mono,letterSpacing:"1px",marginTop:4}}>CONF</div>
                   </div>
                 </div>
 
+                {/* Expanded detail */}
                 {selectedId===enq.id&&(
-                  <div style={{marginTop:18,paddingTop:18,borderTop:`1px solid ${T.border}`,animation:"fadeUp 0.2s ease"}}>
+                  <div style={{marginTop:16,paddingTop:16,borderTop:`1px solid ${T.border}`,animation:"appear 0.2s ease"}}>
                     <Lbl>Customer</Lbl>
-                    <div className="detail-grid-4" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:16}}>
+                    <div className="detail-4" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:16,marginBottom:20}}>
                       <F l="Name" v={enq.customer?.name}/><F l="Company" v={enq.customer?.company}/>
                       <F l="Email" v={enq.customer?.email}/><F l="Phone" v={enq.customer?.phone}/>
                     </div>
 
                     <Lbl>Products</Lbl>
                     {enq.enquiry?.items?.length>0?enq.enquiry.items.map((item,i)=>(
-                      <div key={i} style={{background:T.bg,borderRadius:8,padding:16,border:`1px solid ${T.border}`,marginBottom:8}}>
+                      <div key={i} style={{background:T.bg,borderRadius:6,padding:"14px 16px",border:`1px solid ${T.border}`,marginBottom:8}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                          <span style={{fontWeight:700,fontSize:13,color:T.accent}}>{item.product_type}</span>
-                          <Badge t={`QTY ${item.quantity}`} c={T.accent} bg={T.accentGlow}/>
+                          <span style={{fontWeight:600,fontSize:13,color:T.accent}}>{item.product_type}</span>
+                          <Badge t={`QTY ${item.quantity}`} c={T.accent} bg={T.accentSoft}/>
                         </div>
-                        <p style={{fontSize:12,color:T.textSoft,margin:"0 0 6px",lineHeight:1.6}}>{item.description}</p>
+                        <p style={{fontSize:13,color:T.textSec,margin:0,lineHeight:1.5}}>{item.description}</p>
                         {item.dimensions&&(item.dimensions.length_mm||item.dimensions.width_mm||item.dimensions.height_mm)&&(
-                          <div style={{fontSize:12,fontFamily:"'IBM Plex Mono',monospace",marginBottom:8}}>
-                            <span style={{color:T.textMuted}}>Dims ({item.dimensions.type}): </span>
-                            <span style={{color:T.blue,fontWeight:600}}>{item.dimensions.length_mm??"—"} × {item.dimensions.width_mm??"—"} × {item.dimensions.height_mm??"—"} mm</span>
+                          <div style={{fontSize:12,fontFamily:mono,marginTop:8,padding:"6px 10px",background:T.surfaceHover,borderRadius:4,display:"inline-block"}}>
+                            <span style={{color:T.textMut}}>{item.dimensions.type}: </span>
+                            <span style={{color:T.blue,fontWeight:500}}>{item.dimensions.length_mm??"—"} × {item.dimensions.width_mm??"—"} × {item.dimensions.height_mm??"—"} mm</span>
                           </div>
                         )}
                         {item.requirements?.length>0&&(
-                          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:10}}>
                             {item.requirements.map((r,j)=>(
-                              <span key={j} style={{fontSize:10,padding:"3px 8px",background:T.panel,border:`1px solid ${T.border}`,borderRadius:4,color:T.textSoft,fontFamily:"'IBM Plex Mono',monospace"}}>{r}</span>
+                              <span key={j} style={{fontSize:11,padding:"3px 10px",background:T.surfaceHover,border:`1px solid ${T.border}`,borderRadius:20,color:T.textSec,fontFamily:mono}}>{r}</span>
                             ))}
                           </div>
                         )}
                       </div>
-                    )):(enq.items_detail&&<p style={{fontSize:12,color:T.textSoft,marginBottom:12}}>{enq.items_detail}</p>)}
+                    )):(enq.items_detail&&<p style={{fontSize:13,color:T.textSec,marginBottom:12}}>{enq.items_detail}</p>)}
 
-                    <div className="detail-grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginTop:8}}>
+                    <div className="detail-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginTop:12}}>
                       <div>
                         <Lbl>Services needed</Lbl>
                         {enq.enquiry?.services_needed?.length>0?enq.enquiry.services_needed.map((s,i)=>(
-                          <div key={i} style={{fontSize:12,color:T.text,marginBottom:4}}><span style={{color:T.green,fontSize:10}}>●</span> {s}</div>
-                        )):<span style={{fontSize:12,color:T.textMuted}}>None specified</span>}
+                          <div key={i} style={{fontSize:13,color:T.text,marginBottom:6,display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{color:T.green,fontSize:6}}>●</span> {s}
+                          </div>
+                        )):<span style={{fontSize:13,color:T.textMut}}>None specified</span>}
                       </div>
                       <div>
                         <Lbl>Missing info</Lbl>
                         {enq.missing_info?.length>0?enq.missing_info.map((m,i)=>(
-                          <div key={i} style={{fontSize:12,color:T.yellow,marginBottom:4}}>▲ {m}</div>
-                        )):<span style={{fontSize:12,color:T.green}}>All info provided ✓</span>}
+                          <div key={i} style={{fontSize:13,color:T.yellow,marginBottom:6,display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{fontSize:10}}>▲</span> {m}
+                          </div>
+                        )):<span style={{fontSize:13,color:T.green}}>All info provided ✓</span>}
                       </div>
                     </div>
 
-                    {enq.suggested_followup&&<div style={{marginTop:14}}><Lbl>Suggested follow-up</Lbl><p style={{fontSize:12,lineHeight:1.7,color:T.text}}>{enq.suggested_followup}</p></div>}
-                    {enq.attachment_analysis&&<div style={{marginTop:14}}><Lbl>Attachment analysis</Lbl><p style={{fontSize:12,lineHeight:1.7,color:T.text}}>{enq.attachment_analysis}</p></div>}
+                    {enq.suggested_followup&&<div style={{marginTop:16}}><Lbl>Suggested follow-up</Lbl><p style={{fontSize:13,lineHeight:1.6,color:T.text}}>{enq.suggested_followup}</p></div>}
+                    {enq.attachment_analysis&&<div style={{marginTop:16}}><Lbl>Attachment analysis</Lbl><p style={{fontSize:13,lineHeight:1.6,color:T.text}}>{enq.attachment_analysis}</p></div>}
 
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,paddingTop:12,borderTop:`1px solid ${T.border}`}}>
-                      <div style={{fontSize:12}}><span style={{color:T.textMuted}}>Deadline: </span><span style={{color:enq.enquiry?.deadline?T.white:T.textMuted,fontWeight:enq.enquiry?.deadline?600:400}}>{enq.enquiry?.deadline||"Not specified"}</span></div>
-                      <div style={{fontSize:10,fontFamily:"'IBM Plex Mono',monospace",color:T.textMuted}}>Processed: {enq.processed_at?new Date(enq.processed_at).toLocaleString():"—"}</div>
+                      <div style={{fontSize:13}}><span style={{color:T.textMut}}>Deadline: </span><span style={{color:enq.enquiry?.deadline?T.white:T.textMut,fontWeight:enq.enquiry?.deadline?500:400}}>{enq.enquiry?.deadline||"Not specified"}</span></div>
+                      <div style={{fontSize:11,fontFamily:mono,color:T.textMut}}>{enq.processed_at?new Date(enq.processed_at).toLocaleString():"—"}</div>
                     </div>
                   </div>
                 )}
@@ -268,51 +278,42 @@ export default function App() {
           </div>
         )}
 
-        {/* ── ARCHITECTURE TAB ── */}
+        {/* ── ARCHITECTURE ── */}
         {view==="architecture"&&(
-          <div style={{animation:"fadeUp 0.3s ease"}}>
-            <h2 style={{margin:"0 0 4px",fontSize:22,fontWeight:800,color:T.white,letterSpacing:"-0.3px"}}>System Architecture</h2>
-            <p style={{margin:"0 0 32px",fontSize:12,color:T.textMuted,fontFamily:"'IBM Plex Mono',monospace"}}>n8n automation backend + React dashboard frontend</p>
+          <div style={{animation:"appear 0.25s ease"}}>
+            <h2 style={{fontSize:20,fontWeight:700,color:T.white,lineHeight:1.3,marginBottom:4}}>System Architecture</h2>
+            <p style={{fontSize:12,fontFamily:mono,color:T.textMut,marginBottom:32}}>n8n automation backend + React dashboard frontend</p>
 
-            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"36px 32px",marginBottom:28,boxShadow:`0 2px 12px ${T.shadow}`}}>
-              <div style={{fontSize:10,fontFamily:"'IBM Plex Mono',monospace",color:T.accent,marginBottom:24,textTransform:"uppercase",letterSpacing:"1.5px",fontWeight:600}}>Automated pipeline</div>
+            {/* Pipeline */}
+            <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,padding:"24px 28px",marginBottom:24}}>
+              <div style={{fontSize:10,fontFamily:mono,color:T.textMut,textTransform:"uppercase",letterSpacing:"1.5px",marginBottom:24,fontWeight:500}}>Processing pipeline</div>
               {[
-                {i:"📧",t:"Gmail trigger",d:"n8n watches company inbox for new enquiry emails",tag:"n8n",tc:T.green},
-                {i:"📎",t:"Attachment check",d:"Detects images/drawings → prepares base64 for Vision API",tag:"n8n",tc:T.green},
-                {i:"🤖",t:"GPT-4o API",d:"Extracts customer, dimensions, requirements, use case + summarises",tag:"OpenAI",tc:T.accent},
-                {i:"🖼️",t:"Vision processing",d:"If attachments: GPT-4o Vision analyses CAD drawings / product images",tag:"OpenAI",tc:T.accent},
-                {i:"📊",t:"Google Sheets",d:"Structured data appended to enquiry tracker spreadsheet",tag:"n8n",tc:T.green},
-                {i:"🔔",t:"Slack notification",d:"Team alerted with summary, urgency flag, missing info",tag:"n8n",tc:T.green},
-                {i:"◫",t:"React dashboard",d:"This dashboard — reads from Google Sheets, auto-refreshes every 15s",tag:"Vercel",tc:T.blue},
+                {n:1,t:"Gmail trigger",d:"n8n watches company inbox for new enquiry emails",tag:"n8n",tc:T.green},
+                {n:2,t:"Attachment check",d:"Detects images/drawings → prepares base64 for Vision API",tag:"n8n",tc:T.green},
+                {n:3,t:"GPT-4o API",d:"Extracts customer, dimensions, requirements, use case + summarises",tag:"OpenAI",tc:T.accent},
+                {n:4,t:"Vision processing",d:"If attachments: GPT-4o Vision analyses CAD drawings / product images",tag:"OpenAI",tc:T.accent},
+                {n:5,t:"Google Sheets",d:"Structured data appended to enquiry tracker spreadsheet",tag:"n8n",tc:T.green},
+                {n:6,t:"Slack notification",d:"Team alerted with summary, urgency flag, missing info",tag:"n8n",tc:T.green},
+                {n:7,t:"React dashboard",d:"This dashboard — reads from Google Sheets, auto-refreshes every 15s",tag:"Vercel",tc:T.blue},
               ].map((s,idx)=>(
-                <div key={idx} style={{display:"flex",gap:18,alignItems:"flex-start",animation:"staggerIn 0.35s ease forwards",animationDelay:`${idx*100}ms`,opacity:0}}>
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:36,flexShrink:0}}>
-                    <div style={{
-                      width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,
-                      background:T.bg,borderRadius:"50%",border:`2px solid ${s.tc}55`,
-                      boxShadow:`0 0 8px ${s.tc}22`,animation:"glowPulse 3s ease-in-out infinite",
-                      "--gc":s.tc
-                    }}>{s.i}</div>
-                    {idx<6&&(
-                      <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                        <div style={{width:2,height:10,background:`linear-gradient(${T.border},${s.tc}44)`,borderRadius:1}}/>
-                        <div style={{width:5,height:5,borderRadius:"50%",background:s.tc,opacity:0.5,animation:"nodePulse 2.5s ease-in-out infinite",animationDelay:`${idx*200}ms`}}/>
-                        <div style={{width:2,height:10,background:`linear-gradient(${s.tc}44,${T.border})`,borderRadius:1}}/>
-                      </div>
-                    )}
+                <div key={idx} style={{display:"flex",gap:16,alignItems:"flex-start",animation:"appear 0.3s ease forwards",animationDelay:`${idx*70}ms`,opacity:0}}>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:32,flexShrink:0}}>
+                    <div style={{width:32,height:32,borderRadius:"50%",border:`1.5px solid ${s.tc}50`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,fontFamily:mono,color:s.tc,background:T.bg}}>{s.n}</div>
+                    {idx<6&&<div style={{width:1,height:28,background:T.border}}/>}
                   </div>
-                  <div style={{paddingBottom:idx<6?12:0,flex:1}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <span style={{fontSize:13,fontWeight:700,color:T.white}}>{s.t}</span>
-                      <Badge t={s.tag} c={s.tc} bg={`${s.tc}22`}/>
+                  <div style={{flex:1,paddingBottom:idx<6?8:0,paddingTop:4}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                      <span style={{fontSize:13,fontWeight:600,color:T.white}}>{s.t}</span>
+                      <Badge t={s.tag} c={s.tc} bg={`${s.tc}12`}/>
                     </div>
-                    <p style={{margin:"4px 0 0",fontSize:12,color:T.textSoft,lineHeight:1.6}}>{s.d}</p>
+                    <p style={{fontSize:12,color:T.textSec,lineHeight:1.5,margin:0}}>{s.d}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="arch-panels-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:28}}>
+            {/* Panels */}
+            <div className="panels-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:24}}>
               <Panel title="Prompt engineering">
                 <P>Extraction prompt includes NSP's real product taxonomy (Road Trunks, Rack Cases, 50/50 Splits) so the AI categorises against actual product lines.</P>
                 <P>Output schema enforces structured JSON with confidence scoring — team instantly sees what's missing and what to follow up on.</P>
@@ -326,17 +327,18 @@ export default function App() {
               </Panel>
             </div>
 
+            {/* Key decisions */}
             <Panel title="Key decisions">
-              <div className="key-decisions-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+              <div className="decisions-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
                 {[
                   {q:"Why GPT-4o?",a:"Native JSON mode guarantees valid output. Vision API handles CAD drawings. Swappable with Claude or Gemini — same prompt works."},
                   {q:"Why n8n over Make?",a:"Self-hostable, no vendor lock-in, better code nodes. NSP keeps full control of their pipeline."},
                   {q:"Why Google Sheets?",a:"Zero learning curve. Everyone knows Sheets. Easy to graduate to a CRM later."},
                   {q:"Why confidence scoring?",a:"Team sees at a glance which enquiries are ready to quote vs which need follow-up."},
                 ].map((d,i)=>(
-                  <div key={i}>
-                    <div style={{fontSize:12,fontWeight:700,color:T.accent,marginBottom:5}}>{d.q}</div>
-                    <div style={{fontSize:12,color:T.textSoft,lineHeight:1.7}}>{d.a}</div>
+                  <div key={i} style={{padding:"16px 20px",borderTop:i>=2?`1px solid ${T.border}`:"none",borderLeft:i%2===1?`1px solid ${T.border}`:"none"}}>
+                    <div style={{fontSize:13,fontWeight:600,color:T.white,marginBottom:6}}>{d.q}</div>
+                    <div style={{fontSize:12,color:T.textSec,lineHeight:1.6}}>{d.a}</div>
                   </div>
                 ))}
               </div>
@@ -346,11 +348,11 @@ export default function App() {
       </main>
 
       {/* ── FOOTER ── */}
-      <footer style={{borderTop:`1px solid ${T.border}`,padding:"22px 24px",textAlign:"center",position:"relative",zIndex:1}}>
-        <p style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",color:T.textMuted,letterSpacing:"0.5px"}}>
-          Built by <span style={{color:T.textSoft,fontWeight:600}}>Ranjith</span>
-          <span style={{margin:"0 10px",color:T.border}}>|</span>
-          <span style={{color:T.accent}}>NSP Cases</span> AI Enquiry Processor
+      <footer style={{borderTop:`1px solid ${T.border}`,padding:"16px 24px",textAlign:"center"}}>
+        <p style={{fontSize:11,fontFamily:mono,color:T.textMut}}>
+          Built by <span style={{color:T.textSec}}>Ranjith</span>
+          <span style={{margin:"0 8px",opacity:0.3}}>·</span>
+          NSP Cases AI Enquiry Processor
         </p>
       </footer>
     </div>
@@ -358,8 +360,18 @@ export default function App() {
 }
 
 /* ── Helper components ────────────────────────── */
-function Badge({t,c,bg}){return <span style={{fontSize:9,fontFamily:"'IBM Plex Mono',monospace",fontWeight:600,padding:"2px 8px",background:bg||`${c}22`,color:c,borderRadius:4,letterSpacing:"0.5px",transition:"opacity 0.2s"}}>{t}</span>}
-function F({l,v}){return <div style={{marginBottom:2}}><div style={{fontSize:9,fontFamily:"'IBM Plex Mono',monospace",color:"#586579",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:3}}>{l}</div><div style={{fontSize:13,color:v?"#e1e7ef":"#586579",fontWeight:v?500:400}}>{v||"—"}</div></div>}
-function Lbl({children}){return <div style={{fontSize:10,fontWeight:700,fontFamily:"'IBM Plex Mono',monospace",color:"#586579",textTransform:"uppercase",letterSpacing:"1.5px",marginBottom:10}}>▸ {children}</div>}
-function Panel({title,children}){return <div style={{background:"#171e2a",border:"1px solid #222d3d",borderRadius:10,padding:22,marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}><div style={{fontSize:10,fontWeight:700,fontFamily:"'IBM Plex Mono',monospace",color:"#e8771a",letterSpacing:"1.5px",marginBottom:14,paddingBottom:10,borderBottom:"1px solid #222d3d"}}>{title}</div>{children}</div>}
-function P({children,last}){return <p style={{fontSize:12,lineHeight:1.8,color:"#94a3b8",margin:last?"0":"0 0 8px"}}>{children}</p>}
+function Badge({t,c,bg}){
+  return <span style={{fontSize:10,fontFamily:"'IBM Plex Mono',monospace",fontWeight:500,padding:"2px 8px",background:bg||`${c}12`,color:c,borderRadius:3,letterSpacing:"0.3px"}}>{t}</span>;
+}
+function F({l,v}){
+  return <div><div style={{fontSize:10,fontFamily:"'IBM Plex Mono',monospace",color:"#4f5868",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>{l}</div><div style={{fontSize:13,color:v?"#dfe3eb":"#4f5868",fontWeight:v?500:400}}>{v||"—"}</div></div>;
+}
+function Lbl({children}){
+  return <div style={{fontSize:10,fontWeight:600,fontFamily:"'IBM Plex Mono',monospace",color:"#4f5868",textTransform:"uppercase",letterSpacing:"1px",marginBottom:10}}>{children}</div>;
+}
+function Panel({title,children}){
+  return <div style={{background:"#111419",border:"1px solid #1e2430",borderRadius:8,padding:"20px 24px",marginBottom:12}}><div style={{fontSize:11,fontWeight:600,fontFamily:"'IBM Plex Mono',monospace",color:"#8a94a6",textTransform:"uppercase",letterSpacing:"1px",marginBottom:16,paddingBottom:12,borderBottom:"1px solid #1e2430"}}>{title}</div>{children}</div>;
+}
+function P({children,last}){
+  return <p style={{fontSize:13,lineHeight:1.7,color:"#8a94a6",margin:last?"0":"0 0 8px"}}>{children}</p>;
+}
