@@ -65,7 +65,7 @@ An AI-powered workflow that automatically extracts customer details, dimensions,
 
 ```bash
 # Clone the repo
-git clone https://github.com/Ranjith36963/email-extraction.git
+git clone <your-repo-url> ai-enquiry-triage
 cd ai-enquiry-triage
 
 # Install dependencies
